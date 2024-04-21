@@ -48,7 +48,8 @@ def crawling():
         calendar_element.click()
         time.sleep(1)
 
-        date_selector = ".is_today"
+        date_selector = ".calendar-day-2024-04-15"
+        # date_selector = ".is_today"
         date_element = driver.find_element(By.CSS_SELECTOR, date_selector)
         date_element.click()
         time.sleep(1)
@@ -98,6 +99,7 @@ def crawling():
                 title2 = copy_seoul_articles[j]["title"]
                 context1 = copy_seoul_articles[i]["mini_context"]
                 context2 = copy_seoul_articles[j]["mini_context"]
+                
                 # Jaro-Winkler 유사도 계산
                 similarity_title = jellyfish.jaro_winkler_similarity(title1, title2)
                 similarity_context = jellyfish.jaro_winkler_similarity(context1, context2)
@@ -118,6 +120,7 @@ def crawling():
 
 @scheduler.task('interval', id='do_save_news_5minutes', minutes=5)
 def saveNews():
+
     result = crawling()
     
     cursor = conn.cursor()
@@ -132,24 +135,17 @@ def saveNews():
         if news['title'] not in flat_newsTitle:
             addNews_article.append(news)
 
-    values = [(article['title'], article['mini_context'], article['media'], article['url']) for article in addNews_article]
+    current_time = datetime.now()
+    values = [(article['title'], article['mini_context'], article['media'], article['url'], current_time) for article in addNews_article]
 
-    cursor.executemany("INSERT INTO news (title , text, media, url) VALUES (%s, %s,%s, %s)", values)
+    cursor.executemany("INSERT INTO news (title , text, media, url,created_at) VALUES (%s, %s,%s, %s, %s)", values)
     conn.commit()
     cursor.close()
-    
 
 
-@app.route('/news',methods=['GET'])
-def getNews():
-    cursor = conn.cursor()
-    cursor.execute('select title, url, media, created_at from news order by created_at desc')
-    news = cursor.fetchall()
-    return news
-
-
-@app.route('/accident',methods=['GET'])
+@scheduler.task('interval', id='do_save_accident_5minutes', minutes=3)
 def accident():
+
     today = date.today()
     start_of_today = datetime.combine(today, datetime.min.time())
     end_of_today = datetime.combine(today, datetime.max.time())
@@ -163,9 +159,6 @@ def accident():
     cursor.execute('select * from news where created_at BETWEEN %s AND %s', (start_of_today, end_of_today))
 
     news = cursor.fetchall()
-
-    if not news :
-        return 'Not Found Error : 현재 뉴스가 존재하지 않습니다.', 404
     
     filtered_articles = []
     key_words = ['무죄','선고','구속','검거','법원','항소','징역','구형','법원','수사','공판','판사','기소','송치','지난','전날','작년','체포','단속','법정','고속도로']
@@ -186,15 +179,17 @@ def accident():
     for i in range(len(pred_new_text)):
         if pred_new_text[i] == 1:
             selected_texts.append(filtered_articles[i])
-     
-    return selected_texts
 
+    selected_ids = [article[0] for article in selected_texts]
+    print('selected_ids => ',selected_ids)
 
+    placeholders = ','.join(['%s'] * len(selected_ids))
 
-
-
-
+    cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN ({})".format(placeholders), selected_ids)
     
+    conn.commit()
+    cursor.close()
+
 if __name__ == '__main__':
     scheduler.start()
     app.run()
