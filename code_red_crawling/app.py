@@ -21,7 +21,6 @@ app = Flask(__name__)
 scheduler = APScheduler()
 scheduler.init_app(app)
 
-# PostgreSQL 데이터베이스 연결 및 환경변수 설정.
 def create_connection():
     conn = psycopg2.connect(
         host=os.getenv('DB_HOST'),
@@ -116,7 +115,7 @@ def crawling():
     finally:
         driver.close()
 
-@scheduler.task('interval', id='do_save_news_5minutes', minutes=4)
+@scheduler.task('interval', id='do_save_news_4minutes', minutes=4)
 def saveNews():
 
     result = crawling()
@@ -125,7 +124,6 @@ def saveNews():
     try:
         cursor.execute('select title from news')
         newsTitle = cursor.fetchall()
-        print('newsTitle => ',newsTitle)
         flat_newsTitle = list(itertools.chain(*newsTitle))
         
         addNews_article=[]
@@ -146,7 +144,7 @@ def saveNews():
         cursor.close()
 
 
-@scheduler.task('interval', id='do_save_accident_5minutes', minutes=2)
+@scheduler.task('interval', id='do_save_accident_5minutes', minutes=5)
 def accident():
 
     today = date.today()
@@ -185,7 +183,6 @@ def accident():
                 selected_texts.append(filtered_articles[i])
 
         selected_ids = [article[0] for article in selected_texts]
-        print('selected_texts => ',selected_texts)
         if selected_ids:
             cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN (%s)" % ','.join(['%s'] * len(selected_ids)), selected_ids)
             conn.commit()
