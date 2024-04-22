@@ -88,7 +88,6 @@ def crawling():
                     if keyword in title or keyword in mini_context:
                         seoul_articles.append({"title": title, "mini_context": mini_context,"media":media, "url":url})
                         break
-        print(seoul_articles)
         copy_seoul_articles = seoul_articles[0:]
         i = 0
         while i < len(copy_seoul_articles):
@@ -123,27 +122,31 @@ def saveNews():
     result = crawling()
     
     cursor = conn.cursor()
-    cursor.execute('select title from news')
-    newsTitle = cursor.fetchall()
-    
-    flat_newsTitle = list(itertools.chain(*newsTitle))
-    
-    addNews_article=[]
-    
-    for news in result:
-        if news['title'] not in flat_newsTitle:
-            addNews_article.append(news)
+    try:
+        cursor.execute('select title from news')
+        newsTitle = cursor.fetchall()
+        print('newsTitle => ',newsTitle)
+        flat_newsTitle = list(itertools.chain(*newsTitle))
+        
+        addNews_article=[]
+        
+        for news in result:
+            if news['title'] not in flat_newsTitle:
+                addNews_article.append(news)
 
-    print("addNews_article => ",addNews_article)
-    current_time = datetime.now()
-    values = [(article['title'], article['mini_context'], article['media'], article['url'], current_time) for article in addNews_article]
+        current_time = datetime.now()
+        values = [(article['title'], article['mini_context'], article['media'], article['url'], current_time) for article in addNews_article]
 
-    cursor.executemany("INSERT INTO news (title , text, media, url,created_at) VALUES (%s, %s,%s, %s, %s)", values)
-    conn.commit()
-    cursor.close()
+        cursor.executemany("INSERT INTO news (title , text, media, url,created_at) VALUES (%s, %s,%s, %s, %s)", values)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Error occurred:", e)
+    finally:
+        cursor.close()
 
 
-@scheduler.task('interval', id='do_save_accident_5minutes', minutes=5)
+@scheduler.task('interval', id='do_save_accident_5minutes', minutes=2)
 def accident():
 
     today = date.today()
@@ -173,7 +176,6 @@ def accident():
         combined_text.append(title + ' ' + mini_context)
     
     if combined_text:
-
         new_text_processed = loaded_cv.transform(combined_text)
         pred_new_text = loaded_model.predict(new_text_processed)
     
@@ -183,13 +185,11 @@ def accident():
                 selected_texts.append(filtered_articles[i])
 
         selected_ids = [article[0] for article in selected_texts]
-        print('selected_ids => ',selected_ids)
+        print('selected_texts => ',selected_texts)
+        if selected_ids:
+            cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN (%s)" % ','.join(['%s'] * len(selected_ids)), selected_ids)
+            conn.commit()
 
-        placeholders = ','.join(['%s'] * len(selected_ids))
-
-        cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN ({})".format(placeholders), selected_ids)
-    
-    conn.commit()
     cursor.close()
 
 if __name__ == '__main__':
