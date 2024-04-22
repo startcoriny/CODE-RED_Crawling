@@ -48,8 +48,7 @@ def crawling():
         calendar_element.click()
         time.sleep(1)
 
-        date_selector = ".calendar-day-2024-04-15"
-        # date_selector = ".is_today"
+        date_selector = ".is_today"
         date_element = driver.find_element(By.CSS_SELECTOR, date_selector)
         date_element.click()
         time.sleep(1)
@@ -89,7 +88,7 @@ def crawling():
                     if keyword in title or keyword in mini_context:
                         seoul_articles.append({"title": title, "mini_context": mini_context,"media":media, "url":url})
                         break
-        
+        print(seoul_articles)
         copy_seoul_articles = seoul_articles[0:]
         i = 0
         while i < len(copy_seoul_articles):
@@ -118,7 +117,7 @@ def crawling():
     finally:
         driver.close()
 
-@scheduler.task('interval', id='do_save_news_5minutes', minutes=5)
+@scheduler.task('interval', id='do_save_news_5minutes', minutes=4)
 def saveNews():
 
     result = crawling()
@@ -135,6 +134,7 @@ def saveNews():
         if news['title'] not in flat_newsTitle:
             addNews_article.append(news)
 
+    print("addNews_article => ",addNews_article)
     current_time = datetime.now()
     values = [(article['title'], article['mini_context'], article['media'], article['url'], current_time) for article in addNews_article]
 
@@ -143,7 +143,7 @@ def saveNews():
     cursor.close()
 
 
-@scheduler.task('interval', id='do_save_accident_5minutes', minutes=3)
+@scheduler.task('interval', id='do_save_accident_5minutes', minutes=5)
 def accident():
 
     today = date.today()
@@ -171,21 +171,23 @@ def accident():
         title = item[1]
         mini_context = item[3]
         combined_text.append(title + ' ' + mini_context)
-
-    new_text_processed = loaded_cv.transform(combined_text)
-    pred_new_text = loaded_model.predict(new_text_processed)
     
-    selected_texts = []
-    for i in range(len(pred_new_text)):
-        if pred_new_text[i] == 1:
-            selected_texts.append(filtered_articles[i])
+    if combined_text:
 
-    selected_ids = [article[0] for article in selected_texts]
-    print('selected_ids => ',selected_ids)
+        new_text_processed = loaded_cv.transform(combined_text)
+        pred_new_text = loaded_model.predict(new_text_processed)
+    
+        selected_texts = []
+        for i in range(len(pred_new_text)):
+            if pred_new_text[i] == 1:
+                selected_texts.append(filtered_articles[i])
 
-    placeholders = ','.join(['%s'] * len(selected_ids))
+        selected_ids = [article[0] for article in selected_texts]
+        print('selected_ids => ',selected_ids)
 
-    cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN ({})".format(placeholders), selected_ids)
+        placeholders = ','.join(['%s'] * len(selected_ids))
+
+        cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN ({})".format(placeholders), selected_ids)
     
     conn.commit()
     cursor.close()
