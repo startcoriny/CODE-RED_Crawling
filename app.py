@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
-import time
+from time import sleep
 import jellyfish
 import os
 import psycopg2
@@ -22,14 +22,23 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 
 def create_connection():
-    conn = psycopg2.connect(
+    retry_count = 5
+    for i in range(retry_count):
+        try:
+            conn = psycopg2.connect(
         host=os.getenv('DB_HOST'),
         dbname=os.getenv('DB_NAME'),
         user=os.getenv('DB_USERNAME'),
         password=os.getenv('DB_PASSWORD'),
         port=os.getenv('DB_PORT')
     )
-    return conn
+            print("Database connection successful")
+            return conn
+        except psycopg2.OperationalError as e:
+            print(f"Connection failed: {e}")
+            print("Trying again in 5 seconds...")
+            sleep(5)
+    raise Exception("Failed to connect to database after several attempts")
 conn = create_connection()
 
 

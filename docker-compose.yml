@@ -4,12 +4,10 @@ services:
   codered_postgresql:
     image: postgis/postgis
     restart: always
-    container_name: postgres
+    container_name: codered_postgresql
     ports:
       - "5432:5432"
-
     # 환경 변수 설정
-
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -18,3 +16,17 @@ services:
       - ./data/postgres/:/var/lib/postgresql/data
     networks:
       - compose-networks
+  codered_crawling:
+    image: codered_crawling
+    restart: always
+    container_name: codered_crawling
+    ports:
+      - "5000:5000"
+    depends_on:
+      - codered_postgresql
+    networks:
+      - compose-networks
+
+networks:
+  compose-networks:
+    driver: bridge
