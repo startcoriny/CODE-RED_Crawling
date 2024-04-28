@@ -136,6 +136,7 @@ def saveNews():
         values = [(article['title'], article['mini_context'], article['media'], article['url'], current_time) for article in addNews_article]
 
         cursor.executemany("INSERT INTO news (title , text, media, url,created_at) VALUES (%s, %s,%s, %s, %s)", values)
+        print('사건사고관련 뉴스 저장완료')
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -186,7 +187,7 @@ def accident():
         if selected_ids:
             cursor.execute("UPDATE news SET news_level = 'Danger' WHERE ID IN (%s)" % ','.join(['%s'] * len(selected_ids)), selected_ids)
             conn.commit()
-
+    print('사건사고 업데이트 완료')
     cursor.close()
 
 if __name__ == '__main__':
